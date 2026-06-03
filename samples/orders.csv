@@ -1,0 +1,7 @@
+customer_id,order_id,category,order_value,order_date
+C001,O1001,Electronics,24000,2026-01-12
+C002,O1002,Fashion,8500,2026-01-13
+C003,O1003,Groceries,3200,2026-01-14
+C004,O1004,Electronics,18000,2026-01-15
+C007,O1005,Furniture,45000,2026-01-16
+C006,O1006,Fashion,,2026-01-17

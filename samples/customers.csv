@@ -1,0 +1,8 @@
+customer_id,name,city,age,spend_score
+C001,Aarav,Delhi,28,72
+C002,Meera,Mumbai,34,81
+C003,Rohan,Bengaluru,42,65
+C004,Kavya,Delhi,,77
+C005,Ishaan,Chennai,31,70
+C005,Ishaan,Chennai,31,70
+C006,Anaya,Pune,29,74
