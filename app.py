@@ -6,7 +6,7 @@ from modules.pdf_reader import extract_pdf_data
 
 from modules.cleaner import DataCleaner
 
-from modules.merger import merge_files
+from modules.merger import smart_ai_merge
 
 from modules.preprocessing import ml_ready
 
