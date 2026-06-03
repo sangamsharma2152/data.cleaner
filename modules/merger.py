@@ -1,64 +1,36 @@
 import pandas as pd
-from fuzzywuzzy import fuzz
+import hashlib
+
+from modules.ai_engine import ai_match_columns
 
 
 
-def find_common_columns(df1,df2):
-
-    common=[]
-
-    for c1 in df1.columns:
-
-        for c2 in df2.columns:
+def generate_ai_id(df):
 
 
-            score=fuzz.ratio(
-                c1.lower(),
-                c2.lower()
-            )
+    important = df.columns[:3]
 
 
-            if score>75:
+    combined = (
 
-                common.append(
-                    (c1,c2)
-                )
-
-    return common
-
-
-
-
-
-def create_unique_id(df):
-
-
-    main=df.columns[0]
-
-
-    df["AUTO_ID"] = (
-
-        main[:3].upper()
-
-        +
-
-        "_"
-
-        +
-
-        df[main]
+        df[important]
         .astype(str)
-        .str[:5]
-
-        +
-
-        "_"
-
-        +
-
-        df.index.astype(str)
+        .agg("_".join,axis=1)
 
     )
+
+
+    df["AI_GENERATED_ID"] = [
+
+        hashlib.md5(
+            x.encode()
+        )
+        .hexdigest()[:10]
+
+
+        for x in combined
+    ]
+
 
 
     return df
@@ -67,19 +39,63 @@ def create_unique_id(df):
 
 
 
-def merge_files(df1,df2):
+def smart_ai_merge(
+        df1,
+        df2
+):
 
 
-    matches=find_common_columns(
+    matches=ai_match_columns(
         df1,
         df2
     )
 
 
+
+    print(matches)
+
+
+
     if len(matches)>0:
 
 
-        left,right=matches[0]
+        best=max(
+
+            matches,
+
+            key=lambda x:x["confidence"]
+
+        )
+
+
+        merged=pd.merge(
+
+            df1,
+
+            df2,
+
+            left_on=
+            best["file1_column"],
+
+            right_on=
+            best["file2_column"],
+
+            how="outer"
+
+        )
+
+
+        return merged,matches
+
+
+
+    else:
+
+
+        df1=generate_ai_id(df1)
+
+        df2=generate_ai_id(df2)
+
 
 
         merged=pd.merge(
@@ -87,28 +103,11 @@ def merge_files(df1,df2):
             df1,
             df2,
 
-            left_on=left,
-
-            right_on=right,
+            on="AI_GENERATED_ID",
 
             how="outer"
 
         )
 
 
-        return merged
-
-
-
-    else:
-
-
-        df1=create_unique_id(df1)
-
-        df2=create_unique_id(df2)
-
-
-        return pd.concat(
-            [df1,df2],
-            axis=1
-        )
+        return merged,[]
