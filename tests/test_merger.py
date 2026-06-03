@@ -3,6 +3,7 @@ import unittest
 import pandas as pd
 
 from modules.merger import generate_ai_id, merge_on_columns
+from modules.ai_engine import fast_match_columns
 
 
 class MergerTests(unittest.TestCase):
@@ -24,6 +25,15 @@ class MergerTests(unittest.TestCase):
         self.assertIn("AI_GENERATED_ID", result.columns)
         self.assertNotIn("AI_GENERATED_ID", df.columns)
         self.assertEqual(len(result.loc[0, "AI_GENERATED_ID"]), 10)
+
+    def test_fast_match_columns_matches_similar_names(self):
+        left = pd.DataFrame({"customer_id": ["C001"]})
+        right = pd.DataFrame({"customer id": ["C001"]})
+
+        matches = fast_match_columns(left, right)
+
+        self.assertEqual(matches[0]["file1_column"], "customer_id")
+        self.assertEqual(matches[0]["file2_column"], "customer id")
 
 
 if __name__ == "__main__":

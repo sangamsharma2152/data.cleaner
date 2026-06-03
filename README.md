@@ -7,7 +7,7 @@ AI Data Cleaning Pipeline is a Streamlit app for cleaning, merging, and preparin
 - Upload two CSV, Excel, or PDF datasets.
 - Preview raw data and basic EDA summaries.
 - Remove empty rows, fill missing values, remove duplicates, and filter numeric outliers.
-- Match similar columns with SentenceTransformer embeddings.
+- Match similar columns with fast column-name matching or optional deep SentenceTransformer embeddings.
 - Override AI matching with manual merge column selection.
 - Merge with outer, inner, left, or right join behavior.
 - Generate before/after cleaning reports.
@@ -71,6 +71,7 @@ python -m unittest discover -s tests
 ## Notes and Limitations
 
 - PDF table extraction depends on the PDF layout. CSV and Excel files are more reliable.
-- AI column matching uses `all-MiniLM-L6-v2`, which may download the first time it runs.
+- Fast column matching is the default for faster Streamlit Cloud startup.
+- Deep semantic matching uses `all-MiniLM-L6-v2`, which may download the first time it runs.
 - The app prepares features only. It does not train a model or choose a prediction target.
 - Unknown categories in the test split are encoded as `-1` to avoid leakage.

@@ -73,6 +73,12 @@ with st.sidebar:
         options=["outer", "inner", "left", "right"],
         index=0,
     )
+    match_mode = st.selectbox(
+        "AI matching mode",
+        options=["Fast column matching", "Deep semantic AI matching"],
+        index=0,
+        help="Fast mode is best for Streamlit Cloud speed. Deep semantic mode keeps the transformer-based matcher but takes longer on first run.",
+    )
 
 st.header("Upload datasets")
 uploaded_file_1 = st.file_uploader(
@@ -181,6 +187,7 @@ try:
             clean_df2,
             threshold=match_threshold,
             how=merge_how,
+            match_mode="deep_ai" if match_mode == "Deep semantic AI matching" else "fast",
         )
 except Exception as exc:
     st.error(f"Merging failed: {exc}")

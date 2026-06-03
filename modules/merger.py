@@ -36,8 +36,8 @@ def merge_on_columns(df1, df2, left_column, right_column, how="outer"):
     )
 
 
-def smart_ai_merge(df1, df2, threshold=0.45, how="outer"):
-    matches = ai_match_columns(df1, df2, threshold=threshold)
+def smart_ai_merge(df1, df2, threshold=0.45, how="outer", match_mode="fast"):
+    matches = ai_match_columns(df1, df2, threshold=threshold, mode=match_mode)
 
     if matches:
         best = max(matches, key=lambda item: item["confidence"])
