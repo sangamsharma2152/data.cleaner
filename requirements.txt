@@ -8,3 +8,7 @@ seaborn
 openpyxl
 fuzzywuzzy
 python-Levenshtein
+sentence-transformers
+torch
+transformers
+faiss-cpu
