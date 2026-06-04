@@ -178,58 +178,41 @@ def merge_on_columns(
 def smart_ai_merge(
 
         df1,
-
         df2,
-
         threshold=.45,
-
         how="outer",
-
         match_mode="fast"
 
 ):
 
 
     df1=normalize_dataframe(df1)
-
     df2=normalize_dataframe(df2)
 
 
     matches=find_best_column_match(
-
         df1,
-
         df2
-
     )
-
 
 
     best=matches[0]
 
 
+    merged=pd.merge(
 
-    if best["confidence"]>=threshold:
+        df1,
+        df2,
 
+        left_on=best["file1_column"],
+        right_on=best["file2_column"],
 
-        merged=pd.merge(
+        how="outer"
 
-            df1,
-
-            df2,
-
-
-            left_on=best["file1_column"],
-
-            right_on=best["file2_column"],
+    )
 
 
-            how=how
-
-        )
-
-
-        return merged,matches,best
+    return merged,matches,best
 
 
 
