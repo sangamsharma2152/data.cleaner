@@ -295,8 +295,8 @@ else:
             "Merge Type",
 
             [
-                "outer",
                 "inner",
+                "outer",
                 "left",
                 "right"
             ]
