@@ -1,62 +1,243 @@
-import hashlib
-
 import pandas as pd
-
-from modules.ai_engine import ai_match_columns
-
-
-def generate_ai_id(df):
-    result = df.copy()
-    important = result.columns[: min(3, len(result.columns))]
-
-    if len(important) == 0:
-        result["AI_GENERATED_ID"] = []
-        return result
-
-    combined = result[important].astype(str).agg("_".join, axis=1)
-    result["AI_GENERATED_ID"] = [
-        hashlib.md5(value.encode("utf-8")).hexdigest()[:10] for value in combined
-    ]
-    return result
+from difflib import SequenceMatcher
 
 
-def merge_on_columns(df1, df2, left_column, right_column, how="outer"):
-    if left_column not in df1.columns:
-        raise ValueError(f"{left_column} is not present in the first dataset.")
-    if right_column not in df2.columns:
-        raise ValueError(f"{right_column} is not present in the second dataset.")
 
-    return pd.merge(
+def similarity(a,b):
+
+    return SequenceMatcher(
+        None,
+        str(a).lower(),
+        str(b).lower()
+    ).ratio()
+
+
+
+def clean_value(x):
+
+    return (
+
+        str(x)
+        .lower()
+        .replace("gb","")
+        .replace("₹","")
+        .replace(",","")
+        .strip()
+
+    )
+
+
+
+
+def normalize_dataframe(df):
+
+    df=df.copy()
+
+
+    df.columns=(
+
+        df.columns
+        .str.lower()
+        .str.strip()
+        .str.replace(" ","_")
+
+    )
+
+
+    for col in df.columns:
+
+        df[col]=df[col].apply(clean_value)
+
+
+    return df
+
+
+
+
+def find_best_column_match(df1,df2):
+
+
+    results=[]
+
+
+    for c1 in df1.columns:
+
+
+        for c2 in df2.columns:
+
+
+            column_score = similarity(
+                c1,
+                c2
+            )
+
+
+            value_score=0
+
+
+            sample1=df1[c1].dropna().head(30)
+
+            sample2=df2[c2].dropna().head(30)
+
+
+            matches=[]
+
+
+            for a in sample1:
+
+                for b in sample2:
+
+
+                    matches.append(
+
+                        similarity(a,b)
+
+                    )
+
+
+            if matches:
+
+                value_score=max(matches)
+
+
+
+            final_score=(
+
+                column_score*0.4
+
+                +
+
+                value_score*0.6
+
+            )
+
+
+
+            results.append({
+
+                "file1_column":c1,
+
+                "file2_column":c2,
+
+                "confidence":round(final_score,2)
+
+            })
+
+
+
+    return sorted(
+
+        results,
+
+        key=lambda x:x["confidence"],
+
+        reverse=True
+
+    )
+
+
+
+
+
+def merge_on_columns(
+
         df1,
         df2,
-        left_on=left_column,
-        right_on=right_column,
-        how=how,
-        suffixes=("_dataset1", "_dataset2"),
+        left_col,
+        right_col,
+        how="outer"
+):
+
+
+    df1=normalize_dataframe(df1)
+
+    df2=normalize_dataframe(df2)
+
+
+
+    return pd.merge(
+
+        df1,
+
+        df2,
+
+
+        left_on=left_col.lower(),
+
+        right_on=right_col.lower(),
+
+
+        how=how
+
     )
 
 
-def smart_ai_merge(df1, df2, threshold=0.45, how="outer", match_mode="fast"):
-    matches = ai_match_columns(df1, df2, threshold=threshold, mode=match_mode)
 
-    if matches:
-        best = max(matches, key=lambda item: item["confidence"])
-        merged = merge_on_columns(
+
+
+def smart_ai_merge(
+
+        df1,
+
+        df2,
+
+        threshold=.45,
+
+        how="outer",
+
+        match_mode="fast"
+
+):
+
+
+    df1=normalize_dataframe(df1)
+
+    df2=normalize_dataframe(df2)
+
+
+    matches=find_best_column_match(
+
+        df1,
+
+        df2
+
+    )
+
+
+
+    best=matches[0]
+
+
+
+    if best["confidence"]>=threshold:
+
+
+        merged=pd.merge(
+
             df1,
-            df2,
-            best["file1_column"],
-            best["file2_column"],
-            how=how,
-        )
-        return merged, matches, best
 
-    df1_with_id = generate_ai_id(df1)
-    df2_with_id = generate_ai_id(df2)
-    merged = pd.merge(
-        df1_with_id,
-        df2_with_id,
-        on="AI_GENERATED_ID",
-        how=how,
-        suffixes=("_dataset1", "_dataset2"),
-    )
-    return merged, [], None
+            df2,
+
+
+            left_on=best["file1_column"],
+
+            right_on=best["file2_column"],
+
+
+            how=how
+
+        )
+
+
+        return merged,matches,best
+
+
+
+    else:
+
+
+        raise Exception(
+
+            "No common entity found. Please select columns manually."
+
+        )
