@@ -3,7 +3,9 @@ from difflib import SequenceMatcher
 
 
 
-def similarity(a,b):
+# ---------------- SIMILARITY ENGINE ----------------
+
+def similarity(a, b):
 
     return SequenceMatcher(
         None,
@@ -13,32 +15,41 @@ def similarity(a,b):
 
 
 
-def clean_value(x):
+# ---------------- VALUE CLEANING ----------------
 
-    return (
+def clean_value(value):
 
-        str(x)
-        .lower()
-        .replace("gb","")
-        .replace("₹","")
-        .replace(",","")
-        .strip()
+    value = str(value).lower()
 
-    )
+    replacements = [
+        "gb",
+        "mb",
+        "₹",
+        "$",
+        ","
+    ]
+
+
+    for r in replacements:
+        value = value.replace(r,"")
+
+
+    return value.strip()
 
 
 
+# ---------------- NORMALIZER ----------------
 
 def normalize_dataframe(df):
 
-    df=df.copy()
+    df = df.copy()
 
 
-    df.columns=(
+    df.columns = (
 
         df.columns
-        .str.lower()
         .str.strip()
+        .str.lower()
         .str.replace(" ","_")
 
     )
@@ -46,88 +57,98 @@ def normalize_dataframe(df):
 
     for col in df.columns:
 
-        df[col]=df[col].apply(clean_value)
+        df[col] = (
+            df[col]
+            .astype(str)
+            .apply(clean_value)
+        )
 
 
     return df
 
 
 
+# ---------------- FIND BEST MATCH ----------------
 
-def find_best_column_match(df1,df2):
+def find_best_column_match(df1, df2):
 
-
-    results=[]
+    matches=[]
 
 
     for c1 in df1.columns:
 
-
         for c2 in df2.columns:
 
 
-            column_score = similarity(
+            name_score = similarity(
                 c1,
                 c2
             )
 
 
-            value_score=0
+            value_score = 0
 
 
-            sample1=df1[c1].dropna().head(30)
+            values1 = (
+                df1[c1]
+                .dropna()
+                .head(20)
+            )
 
-            sample2=df2[c2].dropna().head(30)
+            values2 = (
+                df2[c2]
+                .dropna()
+                .head(20)
+            )
 
 
-            matches=[]
+            scores=[]
 
 
-            for a in sample1:
+            for a in values1:
 
-                for b in sample2:
+                for b in values2:
 
-
-                    matches.append(
-
+                    scores.append(
                         similarity(a,b)
-
                     )
 
 
-            if matches:
+            if scores:
 
-                value_score=max(matches)
+                value_score=max(scores)
 
 
 
-            final_score=(
+            final = (
 
-                column_score*0.4
-
+                name_score*0.5
                 +
-
-                value_score*0.6
+                value_score*0.5
 
             )
 
 
 
-            results.append({
+            matches.append(
+
+                {
 
                 "file1_column":c1,
 
                 "file2_column":c2,
 
-                "confidence":round(final_score,2)
+                "confidence":round(final,2)
 
-            })
+                }
+
+            )
 
 
 
     return sorted(
 
-        results,
+        matches,
 
         key=lambda x:x["confidence"],
 
@@ -139,8 +160,9 @@ def find_best_column_match(df1,df2):
 
 
 
-def merge_on_columns(
+# ---------------- MANUAL MERGE ----------------
 
+def merge_on_columns(
         df1,
         df2,
         left_col,
@@ -149,78 +171,96 @@ def merge_on_columns(
 ):
 
 
-    df1=normalize_dataframe(df1)
-
-    df2=normalize_dataframe(df2)
-
+    df1 = normalize_dataframe(df1)
+    df2 = normalize_dataframe(df2)
 
 
-    return pd.merge(
+    left_col = left_col.lower().replace(" ","_")
+    right_col = right_col.lower().replace(" ","_")
+
+
+    merged = pd.merge(
 
         df1,
-
         df2,
 
+        left_on=left_col,
 
-        left_on=left_col.lower(),
-
-        right_on=right_col.lower(),
-
+        right_on=right_col,
 
         how=how
 
     )
 
 
+    return merged
 
 
+
+
+# ---------------- AI MERGE ----------------
 
 def smart_ai_merge(
 
         df1,
         df2,
-        threshold=.45,
+        threshold=0.45,
         how="outer",
         match_mode="fast"
 
 ):
 
 
-    df1=normalize_dataframe(df1)
-    df2=normalize_dataframe(df2)
+    df1 = normalize_dataframe(df1)
+
+    df2 = normalize_dataframe(df2)
 
 
-    matches=find_best_column_match(
+
+    matches = find_best_column_match(
+
         df1,
         df2
+
     )
 
 
-    best=matches[0]
+    if len(matches)==0:
+
+        raise Exception(
+            "No matching columns found"
+        )
 
 
-    merged=pd.merge(
+
+    best = matches[0]
+
+
+
+    merged = pd.merge(
 
         df1,
+
         df2,
 
+
         left_on=best["file1_column"],
+
         right_on=best["file2_column"],
+
 
         how="outer"
 
     )
 
 
-    return merged,matches,best
 
+    return (
 
+        merged,
 
-    else:
+        matches,
 
+        best
 
-        raise Exception(
-
-            "No common entity found. Please select columns manually."
-
-        )
+    )
