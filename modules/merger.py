@@ -3,9 +3,11 @@ from difflib import SequenceMatcher
 
 
 
-# ---------------- SIMILARITY ENGINE ----------------
+# -------------------------
+# Similarity
+# -------------------------
 
-def similarity(a, b):
+def similarity(a,b):
 
     return SequenceMatcher(
         None,
@@ -15,64 +17,98 @@ def similarity(a, b):
 
 
 
-# ---------------- VALUE CLEANING ----------------
+# -------------------------
+# Cleaning
+# -------------------------
 
-def clean_value(value):
+def normalize_value(x):
 
-    value = str(value).lower()
+    x = str(x).lower()
 
-    replacements = [
+    remove=[
         "gb",
         "mb",
-        "₹",
         "$",
+        "₹",
         ","
     ]
 
+    for r in remove:
+        x=x.replace(r,"")
 
-    for r in replacements:
-        value = value.replace(r,"")
-
-
-    return value.strip()
+    return x.strip()
 
 
 
-# ---------------- NORMALIZER ----------------
+def normalize(df):
 
-def normalize_dataframe(df):
+    df=df.copy()
 
-    df = df.copy()
-
-
-    df.columns = (
+    df.columns=(
 
         df.columns
-        .str.strip()
         .str.lower()
+        .str.strip()
         .str.replace(" ","_")
 
     )
 
 
-    for col in df.columns:
+    for c in df.columns:
 
-        df[col] = (
-            df[col]
+        df[c]=(
+            df[c]
             .astype(str)
-            .apply(clean_value)
+            .apply(normalize_value)
         )
-
 
     return df
 
 
 
-# ---------------- FIND BEST MATCH ----------------
 
-def find_best_column_match(df1, df2):
+# -------------------------
+# Check actual row overlap
+# -------------------------
 
-    matches=[]
+def value_overlap(
+        s1,
+        s2
+):
+
+    a=set(
+        s1.dropna()
+        .astype(str)
+        .head(200)
+    )
+
+    b=set(
+        s2.dropna()
+        .astype(str)
+        .head(200)
+    )
+
+
+    if len(a)==0:
+        return 0
+
+
+    return len(a.intersection(b))/len(a)
+
+
+
+
+
+# -------------------------
+# AI column detector
+# -------------------------
+
+def detect_matches(
+        df1,
+        df2
+):
+
+    results=[]
 
 
     for c1 in df1.columns:
@@ -80,75 +116,50 @@ def find_best_column_match(df1, df2):
         for c2 in df2.columns:
 
 
-            name_score = similarity(
+            name=similarity(
                 c1,
                 c2
             )
 
 
-            value_score = 0
+            overlap=value_overlap(
 
+                df1[c1],
 
-            values1 = (
-                df1[c1]
-                .dropna()
-                .head(20)
-            )
-
-            values2 = (
                 df2[c2]
-                .dropna()
-                .head(20)
+
             )
 
 
-            scores=[]
+            score=(
 
+                name*0.3
 
-            for a in values1:
-
-                for b in values2:
-
-                    scores.append(
-                        similarity(a,b)
-                    )
-
-
-            if scores:
-
-                value_score=max(scores)
-
-
-
-            final = (
-
-                name_score*0.5
                 +
-                value_score*0.5
+
+                overlap*0.7
 
             )
 
 
-
-            matches.append(
-
-                {
+            results.append({
 
                 "file1_column":c1,
 
                 "file2_column":c2,
 
-                "confidence":round(final,2)
+                "name_similarity":round(name,2),
 
-                }
+                "data_overlap":round(overlap,2),
 
-            )
+                "confidence":round(score,2)
 
+            })
 
 
     return sorted(
 
-        matches,
+        results,
 
         key=lambda x:x["confidence"],
 
@@ -159,108 +170,116 @@ def find_best_column_match(df1, df2):
 
 
 
-
-# ---------------- MANUAL MERGE ----------------
+# -------------------------
+# Manual merge
+# -------------------------
 
 def merge_on_columns(
+
         df1,
         df2,
         left_col,
         right_col,
-        how="outer"
+        how="inner"
+
 ):
 
+    df1=normalize(df1)
 
-    df1 = normalize_dataframe(df1)
-    df2 = normalize_dataframe(df2)
-
-
-    left_col = left_col.lower().replace(" ","_")
-    right_col = right_col.lower().replace(" ","_")
+    df2=normalize(df2)
 
 
-    merged = pd.merge(
+    return pd.merge(
 
         df1,
+
         df2,
 
-        left_on=left_col,
+        left_on=left_col.lower(),
 
-        right_on=right_col,
+        right_on=right_col.lower(),
 
         how=how
 
     )
 
 
-    return merged
 
 
 
 
-# ---------------- AI MERGE ----------------
+# -------------------------
+# AI MERGE
+# -------------------------
 
 def smart_ai_merge(
 
         df1,
         df2,
-        threshold=0.45,
-        how="outer",
+        threshold=.50,
+        how="inner",
         match_mode="fast"
 
 ):
 
 
-    df1 = normalize_dataframe(df1)
+    df1=normalize(df1)
 
-    df2 = normalize_dataframe(df2)
+    df2=normalize(df2)
 
 
 
-    matches = find_best_column_match(
+    matches=detect_matches(
 
         df1,
+
         df2
 
     )
 
 
-    if len(matches)==0:
+
+    best=matches[0]
+
+
+    # important check
+
+    if best["data_overlap"] < 0.20:
+
 
         raise Exception(
-            "No matching columns found"
+
+            f"""
+AI could not find a real matching column.
+
+Best guess:
+{best['file1_column']}
+ ↔
+{best['file2_column']}
+
+but data similarity was only:
+{best['data_overlap']}
+
+Please use manual merge.
+            """
+
         )
 
 
 
-    best = matches[0]
-
-
-
-    merged = pd.merge(
+    merged=pd.merge(
 
         df1,
 
         df2,
 
-
         left_on=best["file1_column"],
 
         right_on=best["file2_column"],
 
-
-        how="outer"
-
-    )
-
-
-
-    return (
-
-        merged,
-
-        matches,
-
-        best
+        how=how
 
     )
+
+
+    return merged,matches,best
