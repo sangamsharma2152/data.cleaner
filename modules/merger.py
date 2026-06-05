@@ -170,7 +170,6 @@ def smart_ai_merge(
 ):
 
     df1 = normalize_dataframe(df1)
-
     df2 = normalize_dataframe(df2)
 
 
@@ -182,18 +181,40 @@ def smart_ai_merge(
 
     if len(matches) == 0:
 
-        raise Exception(
-            "No matching columns detected"
+        return (
+            pd.DataFrame(),
+            [],
+            {
+                "status":"No matches found"
+            }
         )
 
 
     best = matches[0]
 
 
+    # don't crash app
+    # return information instead
+
     if best["confidence"] < threshold:
 
-        raise Exception(
-            "AI confidence too low. Use manual column selection."
+        return (
+
+            pd.DataFrame(),
+
+            matches,
+
+            {
+                "status":
+                "low confidence",
+
+                "message":
+                "Use manual merge",
+
+                "best_guess":
+                best
+            }
+
         )
 
 
@@ -208,6 +229,7 @@ def smart_ai_merge(
         right_on=best["file2_column"],
 
         how=how
+
     )
 
 
