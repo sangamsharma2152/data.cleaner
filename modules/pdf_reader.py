@@ -1,43 +1,74 @@
 import pandas as pd
-import pdfplumber
 
 
-def _deduplicate_columns(columns):
-    seen = {}
-    cleaned = []
+def extract_pdf_data(file):
 
-    for index, column in enumerate(columns):
-        name = str(column).strip() if column else f"column_{index + 1}"
-        count = seen.get(name, 0)
-        cleaned.append(name if count == 0 else f"{name}_{count + 1}")
-        seen[name] = count + 1
+    try:
 
-    return cleaned
+        import pdfplumber
 
 
-def extract_pdf_data(pdf):
-    all_tables = []
+        tables=[]
 
-    with pdfplumber.open(pdf) as file:
-        for page in file.pages:
-            tables = page.extract_tables() or []
 
-            for table in tables:
-                if not table or len(table) < 2:
-                    continue
+        with pdfplumber.open(file) as pdf:
 
-                header = _deduplicate_columns(table[0])
-                width = len(header)
-                rows = [
-                    (row + [None] * width)[:width]
-                    for row in table[1:]
-                    if row and any(cell not in (None, "") for cell in row)
-                ]
 
-                if rows:
-                    all_tables.append(pd.DataFrame(rows, columns=header))
+            for page in pdf.pages:
 
-    if not all_tables:
+
+                table = page.extract_table()
+
+
+                if table:
+
+
+                    df = pd.DataFrame(
+
+                        table[1:],
+
+                        columns=table[0]
+
+                    )
+
+
+                    tables.append(df)
+
+
+
+        if tables:
+
+
+            return pd.concat(
+
+                tables,
+
+                ignore_index=True
+
+            )
+
+
+
         return pd.DataFrame()
 
-    return pd.concat(all_tables, ignore_index=True)
+
+
+    except ImportError:
+
+
+        raise Exception(
+
+            "PDF support missing. Install pdfplumber."
+
+        )
+
+
+
+    except Exception as e:
+
+
+        raise Exception(
+
+            f"PDF reading failed: {e}"
+
+        )
