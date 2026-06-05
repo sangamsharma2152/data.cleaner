@@ -1,82 +1,303 @@
-import numpy as np
 import pandas as pd
+import numpy as np
 
 
 class DataCleaner:
+
+
     def __init__(self, df):
+
         self.df = df.copy()
+
+        self.steps = []
+
         self.report = {
-            "initial_rows": len(self.df),
-            "initial_columns": len(self.df.columns),
-            "empty_rows_removed": 0,
-            "missing_values_filled": 0,
+
+            "initial_rows": len(df),
+
+            "initial_columns": len(df.columns),
+
             "duplicates_removed": 0,
-            "outliers_removed": 0,
-            "final_rows": len(self.df),
-            "final_columns": len(self.df.columns),
+
+            "missing_values_fixed": 0,
+
+            "outliers_removed": 0
+
         }
 
-    def remove_empty(self):
-        before = len(self.df)
-        self.df = self.df.dropna(how="all")
-        self.report["empty_rows_removed"] = before - len(self.df)
-        return self.df
 
-    def missing_values(self):
-        missing_before = int(self.df.isna().sum().sum())
 
-        for col in self.df.columns:
-            if self.df[col].isna().sum() == 0:
-                continue
+    # --------------------------
+    # COLUMN CLEANING
+    # --------------------------
 
-            if pd.api.types.is_numeric_dtype(self.df[col]):
-                fill_value = self.df[col].median()
-                if pd.isna(fill_value):
-                    fill_value = 0
-            else:
-                mode = self.df[col].dropna().mode()
-                fill_value = mode.iloc[0] if not mode.empty else "Unknown"
+    def clean_column_names(self):
 
-            self.df[col] = self.df[col].fillna(fill_value)
+        self.df.columns = (
 
-        self.report["missing_values_filled"] = missing_before - int(
-            self.df.isna().sum().sum()
+            self.df.columns
+            .str.lower()
+            .str.strip()
+            .str.replace(" ","_")
+
         )
-        return self.df
+
+
+        self.steps.append(
+            "Standardized column names"
+        )
+
+
+
+    # --------------------------
+    # DUPLICATES
+    # --------------------------
 
     def remove_duplicates(self):
+
         before = len(self.df)
-        self.df = self.df.drop_duplicates()
-        self.report["duplicates_removed"] = before - len(self.df)
-        return self.df
+
+
+        self.df.drop_duplicates(
+            inplace=True
+        )
+
+
+        removed = before - len(self.df)
+
+
+        self.report[
+            "duplicates_removed"
+        ] = removed
+
+
+        self.steps.append(
+
+            f"Removed {removed} duplicate rows"
+
+        )
+
+
+
+    # --------------------------
+    # MISSING VALUES
+    # --------------------------
+
+    def fix_missing(self):
+
+        missing_before = (
+
+            self.df
+            .isna()
+            .sum()
+            .sum()
+
+        )
+
+
+        for col in self.df.columns:
+
+
+            if self.df[col].dtype == "object":
+
+
+                self.df[col] = (
+
+                    self.df[col]
+                    .fillna("unknown")
+
+                )
+
+
+            else:
+
+
+                self.df[col] = (
+
+                    self.df[col]
+                    .fillna(
+                        self.df[col].median()
+                    )
+
+                )
+
+
+
+        self.report[
+            "missing_values_fixed"
+        ] = int(missing_before)
+
+
+
+        self.steps.append(
+
+            f"Fixed {missing_before} missing values"
+
+        )
+
+
+
+    # --------------------------
+    # OUTLIERS
+    # --------------------------
 
     def remove_outliers(self):
-        before = len(self.df)
-        numeric_columns = self.df.select_dtypes(include=np.number).columns
 
-        for col in numeric_columns:
-            q1 = self.df[col].quantile(0.25)
-            q3 = self.df[col].quantile(0.75)
-            iqr = q3 - q1
 
-            if pd.isna(iqr) or iqr == 0:
-                continue
+        numeric = (
 
-            lower = q1 - 1.5 * iqr
-            upper = q3 + 1.5 * iqr
-            self.df = self.df[(self.df[col] >= lower) & (self.df[col] <= upper)]
+            self.df
+            .select_dtypes(
+                include=np.number
+            )
 
-        self.report["outliers_removed"] = before - len(self.df)
-        return self.df
+        )
+
+
+        removed = 0
+
+
+
+        for col in numeric.columns:
+
+
+            q1 = self.df[col].quantile(.25)
+
+            q3 = self.df[col].quantile(.75)
+
+
+            iqr = q3-q1
+
+
+            before=len(self.df)
+
+
+
+            self.df = self.df[
+
+                (
+
+                    self.df[col]
+
+                    >= q1-1.5*iqr
+
+                )
+
+                &
+
+                (
+
+                    self.df[col]
+
+                    <= q3+1.5*iqr
+
+                )
+
+            ]
+
+
+
+            removed += before-len(self.df)
+
+
+
+        self.report[
+            "outliers_removed"
+        ] = removed
+
+
+
+        self.steps.append(
+
+            f"Removed {removed} outliers"
+
+        )
+
+
+
+
+    # --------------------------
+    # TEXT NORMALIZATION
+    # --------------------------
+
+    def clean_text(self):
+
+
+        for col in self.df.select_dtypes(
+
+            include="object"
+
+        ):
+
+
+            self.df[col] = (
+
+                self.df[col]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+
+            )
+
+
+        self.steps.append(
+
+            "Normalized text values"
+
+        )
+
+
+
+    # --------------------------
+    # RUN EVERYTHING
+    # --------------------------
 
     def clean_all(self):
-        self.remove_empty()
-        self.missing_values()
+
+
+        self.clean_column_names()
+
+
         self.remove_duplicates()
+
+
+        self.fix_missing()
+
+
+        self.clean_text()
+
+
         self.remove_outliers()
-        self.report["final_rows"] = len(self.df)
-        self.report["final_columns"] = len(self.df.columns)
-        return self.df.copy()
+
+
+
+        self.report[
+
+            "final_rows"
+
+        ] = len(self.df)
+
+
+
+        self.report[
+
+            "final_columns"
+
+        ] = len(self.df.columns)
+
+
+
+        return self.df
+
+
+
 
     def get_report(self):
-        return self.report.copy()
+
+        return self.report
+
+
+
+    def explain_steps(self):
+
+        return self.steps
