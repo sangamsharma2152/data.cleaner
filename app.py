@@ -1,208 +1,128 @@
 import pandas as pd
 import streamlit as st
 
+
 from modules.cleaner import DataCleaner
-from modules.merger import merge_on_columns, smart_ai_merge
-from modules.pdf_reader import extract_pdf_data
+from modules.merger import (
+    merge_on_columns,
+    smart_ai_merge,
+    merge_preview
+)
+
 from modules.preprocessing import ml_ready
+from modules.pdf_reader import extract_pdf_data
 
 
+from modules.ai_analyzer import understand_columns
+from modules.quality import dataset_quality
+from modules.dashboard import auto_dashboard
 
-# ==================================================
-# PAGE CONFIG
-# ==================================================
+
 
 st.set_page_config(
-    page_title="AI Data Cleaning Platform",
+
+    page_title="AI Data Platform",
+
     page_icon="🤖",
+
     layout="wide"
+
 )
 
 
 
-# ==================================================
+
+# =================================================
 # LOAD DATA
-# ==================================================
-
-def load_uploaded_dataset(file):
-
-    ext = file.name.split(".")[-1].lower()
+# =================================================
 
 
-    if ext == "csv":
+def load_file(file):
+
+
+    ext=file.name.split(".")[-1]
+
+
+    if ext=="csv":
+
         return pd.read_csv(file)
 
 
+
     elif ext in ["xlsx","xls"]:
+
         return pd.read_excel(file)
 
 
+
     elif ext=="pdf":
+
         return extract_pdf_data(file)
 
 
+
     else:
+
         raise Exception(
-            "Unsupported file"
+            "Unsupported File"
         )
 
 
 
 
-# ==================================================
-# DISPLAY HELPERS
-# ==================================================
-
-def dataset_summary(name,df):
-
-    st.subheader(name)
+# =================================================
+# UI HELPERS
+# =================================================
 
 
-    c1,c2,c3,c4 = st.columns(4)
+def quality_ui(df):
 
 
-    c1.metric(
-        "Rows",
-        df.shape[0]
-    )
-
-    c2.metric(
-        "Columns",
-        df.shape[1]
-    )
-
-    c3.metric(
-        "Missing",
-        int(df.isna().sum().sum())
-    )
-
-    c4.metric(
-        "Duplicates",
-        int(df.duplicated().sum())
-    )
+    q=dataset_quality(df)
 
 
 
-
-def show_report(report):
-
-    st.dataframe(
-
-        pd.DataFrame([report]),
-
-        use_container_width=True,
-
-        hide_index=True
-
-    )
+    cols=st.columns(4)
 
 
 
+    for i,(k,v) in enumerate(q.items()):
 
 
-# ==================================================
-# MAIN UI
-# ==================================================
+        cols[i%4].metric(
 
-st.title(
-    "🤖 Enterprise AI Data Cleaner"
-)
+            k,
 
+            v
 
-st.caption(
-    "Clean datasets • Merge databases • Prepare ML datasets"
-)
-
-
-
-with st.sidebar:
-
-
-    st.header(
-        "Choose Pipeline"
-    )
-
-
-    mode = st.radio(
-
-        "Mode",
-
-        [
-            "🧹 Single Dataset Cleaner",
-
-            "🔗 AI Dataset Merger"
-        ]
-
-    )
-
-
-
-
-
-# ==================================================
-# SINGLE DATASET CLEANER
-# ==================================================
-
-
-if mode=="🧹 Single Dataset Cleaner":
-
-
-
-    st.header(
-        "Upload Dataset"
-    )
-
-
-
-    uploaded = st.file_uploader(
-
-        "Upload CSV / Excel / PDF",
-
-        type=[
-
-            "csv",
-
-            "xlsx",
-
-            "xls",
-
-            "pdf"
-
-        ]
-
-    )
-
-
-
-    if uploaded is None:
-
-        st.info(
-            "Upload a dataset"
         )
 
-        st.stop()
 
 
 
-    df = load_uploaded_dataset(
-        uploaded
-    )
+
+def column_ai_ui(df):
 
 
-
-    dataset_summary(
-
-        "Original Dataset",
-
-        df
-
-    )
+    result=understand_columns(df)
 
 
 
     st.dataframe(
 
-        df.head(100),
+        pd.DataFrame(
+
+            result.items(),
+
+            columns=[
+
+                "Column",
+
+                "AI Meaning"
+
+            ]
+
+        ),
 
         use_container_width=True
 
@@ -212,367 +132,275 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 
+
+# =================================================
+# APP
+# =================================================
+
+
+st.title(
+    "🤖 Enterprise AI Data Cleaning Platform"
+)
+
+
+
+mode=st.sidebar.radio(
+
+    "Select Mode",
+
+    [
+
+        "Single Dataset Cleaner",
+
+        "AI Dataset Merger"
+
+    ]
+
+)
+
+
+
+
+# =================================================
+# SINGLE CLEANER
+# =================================================
+
+
+if mode=="Single Dataset Cleaner":
+
+
+    file=st.file_uploader(
+
+        "Upload Dataset",
+
+        type=[
+            "csv",
+            "xlsx",
+            "xls",
+            "pdf"
+        ]
+
+    )
+
+
+    if not file:
+
+        st.stop()
+
+
+
+    df=load_file(file)
+
+
+
+    st.header("Dataset Quality")
+
+
+    quality_ui(df)
+
+
+
+    st.header("AI Column Understanding")
+
+
+    column_ai_ui(df)
+
+
+
+
+    st.dataframe(
+        df.head()
+    )
+
+
+
+
     if st.button(
-
-        "🚀 Clean Dataset",
-
-        type="primary"
-
+        "Clean Dataset 🚀"
     ):
 
 
-        try:
 
+        cleaner=DataCleaner(df)
 
-            cleaner = DataCleaner(df)
 
 
-            cleaned = cleaner.clean_all()
+        cleaned=cleaner.clean_all()
 
 
 
-            st.success(
-                "Cleaning completed"
-            )
+        st.success(
+            "Cleaning Complete"
+        )
 
 
-            dataset_summary(
 
-                "Cleaned Dataset",
 
-                cleaned
+        st.subheader(
+            "Before vs After"
+        )
 
-            )
 
 
+        st.json(
 
-            st.subheader(
-                "Cleaning Report"
-            )
+            {
 
+            "Before Rows":len(df),
 
-            show_report(
+            "After Rows":len(cleaned),
 
-                cleaner.get_report()
+            "Rows Removed":len(df)-len(cleaned)
 
-            )
+            }
 
+        )
 
 
-            st.dataframe(
 
-                cleaned.head(200),
 
-                use_container_width=True
+        st.subheader(
+            "Cleaning Explanation"
+        )
 
-            )
 
 
+        for step in cleaner.explain_steps():
 
-            # ML
+            st.info(step)
 
 
-            train,test,report = ml_ready(
 
-                cleaned
 
-            )
+        st.header(
+            "After Cleaning Quality"
+        )
 
 
+        quality_ui(cleaned)
 
-            st.subheader(
 
-                "ML Preparation"
 
-            )
+        auto_dashboard(cleaned)
 
 
-            show_report(
-                report
-            )
 
 
+        train,test,report=ml_ready(cleaned)
 
-            st.download_button(
 
-                "Download Clean Dataset",
 
-                cleaned.to_csv(index=False),
 
-                "cleaned_dataset.csv",
+        st.download_button(
 
-                "text/csv"
+            "Download Cleaned CSV",
 
-            )
+            cleaned.to_csv(index=False),
 
+            "cleaned.csv"
 
+        )
 
-            st.download_button(
 
-                "Download ML Dataset",
 
-                train.to_csv(index=False),
 
-                "ml_dataset.csv",
 
-                "text/csv"
-
-            )
-
-
-
-
-        except Exception as e:
-
-
-            st.error(
-
-                f"Error: {e}"
-
-            )
-
-
-
-
-
-# ==================================================
-# AI DATASET MERGER
-# ==================================================
-
+# =================================================
+# MERGER
+# =================================================
 
 
 else:
 
 
 
-    with st.sidebar:
-
-
-        st.header(
-            "Merge Settings"
-        )
-
-
-
-        confidence = st.slider(
-
-            "AI Match Confidence",
-
-            0.10,
-
-            0.95,
-
-            0.30,
-
-            step=0.05
-
-        )
-
-
-
-        merge_type = st.selectbox(
-
-            "Merge Type",
-
-            [
-
-                "inner",
-
-                "outer",
-
-                "left",
-
-                "right"
-
-            ]
-
-        )
-
-
-
-
-    st.header(
-        "Upload Datasets"
-    )
-
-
-
-    file1 = st.file_uploader(
+    f1=st.file_uploader(
 
         "Dataset 1",
 
         type=[
-
             "csv",
-
             "xlsx",
-
-            "xls",
-
-            "pdf"
-
+            "xls"
         ]
 
     )
 
 
-    file2 = st.file_uploader(
+
+    f2=st.file_uploader(
 
         "Dataset 2",
 
         type=[
-
             "csv",
-
             "xlsx",
-
-            "xls",
-
-            "pdf"
-
+            "xls"
         ]
 
     )
 
 
 
-    if not file1 or not file2:
-
-
-        st.info(
-
-            "Upload two datasets"
-
-        )
-
+    if not f1 or not f2:
 
         st.stop()
 
 
 
+    df1=load_file(f1)
+
+    df2=load_file(f2)
 
 
-    df1 = load_uploaded_dataset(
 
-        file1
+    cleaner1=DataCleaner(df1)
+
+    cleaner2=DataCleaner(df2)
+
+
+
+    clean1=cleaner1.clean_all()
+
+    clean2=cleaner2.clean_all()
+
+
+
+
+    st.header(
+        "AI Merge Preview"
+    )
+
+
+
+    best,all_matches=merge_preview(
+
+        clean1,
+
+        clean2
 
     )
 
 
-    df2 = load_uploaded_dataset(
 
-        file2
 
-    )
+    st.json(best)
 
 
 
-    c1,c2 = st.columns(2)
 
+    with st.expander(
 
+        "All Possible Matches"
 
-    with c1:
-
-
-        dataset_summary(
-
-            "Dataset 1",
-
-            df1
-
-        )
+    ):
 
 
         st.dataframe(
 
-            df1.head(),
-
-            use_container_width=True
+            pd.DataFrame(all_matches)
 
         )
-
-
-
-    with c2:
-
-
-        dataset_summary(
-
-            "Dataset 2",
-
-            df2
-
-        )
-
-
-        st.dataframe(
-
-            df2.head(),
-
-            use_container_width=True
-
-        )
-
-
-
-
-    merge_mode = st.radio(
-
-        "Merge Method",
-
-        [
-
-            "AI Merge",
-
-            "Manual Merge"
-
-        ],
-
-        horizontal=True
-
-    )
-
-
-
-
-    left_col=None
-
-    right_col=None
-
-
-
-
-    if merge_mode=="Manual Merge":
-
-
-
-        a,b = st.columns(2)
-
-
-        with a:
-
-
-            left_col = st.selectbox(
-
-                "Dataset 1 Column",
-
-                df1.columns
-
-            )
-
-
-
-        with b:
-
-
-            right_col = st.selectbox(
-
-                "Dataset 2 Column",
-
-                df2.columns
-
-            )
-
 
 
 
@@ -580,275 +408,63 @@ else:
 
     if st.button(
 
-        "🚀 Start Merge Pipeline",
-
-        type="primary"
+        "Approve and Merge"
 
     ):
 
 
-        try:
 
+        merged,matches,selected=smart_ai_merge(
 
-            progress = st.progress(0)
+            clean1,
 
+            clean2
 
+        )
 
-            cleaner1 = DataCleaner(
 
-                df1
 
-            )
 
-
-            cleaner2 = DataCleaner(
-
-                df2
-
-            )
-
-
-
-            clean1 = cleaner1.clean_all()
-
-
-            clean2 = cleaner2.clean_all()
-
-
-
-            progress.progress(30)
-
-
-
-            st.success(
-
-                "Cleaning finished"
-
-            )
-
-
-
-
-
-            if merge_mode=="Manual Merge":
-
-
-                merged = merge_on_columns(
-
-                    clean1,
-
-                    clean2,
-
-                    left_col,
-
-                    right_col,
-
-                    how=merge_type
-
-                )
-
-
-                selected={
-
-                    "mode":"manual",
-
-                    "column1":left_col,
-
-                    "column2":right_col
-
-                }
-
-
-
-                matches=[]
-
-
-
-            else:
-
-
-                merged,matches,selected = smart_ai_merge(
-
-                    clean1,
-
-                    clean2,
-
-                    threshold=confidence,
-
-                    how=merge_type
-
-                )
-
-
-
-
-
-            progress.progress(70)
-
-
-
-            st.subheader(
-
-                "Merge Decision"
-
-            )
-
-
-
-            st.json(
-
-                selected
-
-            )
-
-
-
-            if matches:
-
-
-                with st.expander(
-
-                    "AI Match Details"
-
-                ):
-
-
-                    st.dataframe(
-
-                        pd.DataFrame(matches),
-
-                        use_container_width=True
-
-                    )
-
-
-
-
-
-            if merged.empty:
-
-
-
-                st.warning(
-
-                    """
-Merge completed but no matching rows found.
-
-The datasets probably do not share a common key.
-
-Try Manual Merge.
-                    """
-
-                )
-
-
-                st.stop()
-
-
-
-
-
-
-            st.subheader(
-
-                "Merged Dataset"
-
-            )
-
-
-
-            dataset_summary(
-
-                "Merged",
-
-                merged
-
-            )
-
-
-
-            st.dataframe(
-
-                merged.head(200),
-
-                use_container_width=True
-
-            )
-
-
-
-
-            train,test,report = ml_ready(
-
-                merged
-
-            )
-
-
-
-            st.subheader(
-
-                "ML Ready Report"
-
-            )
-
-
-            show_report(
-
-                report
-
-            )
-
-
-
-
-            st.download_button(
-
-                "Download Merged Dataset",
-
-                merged.to_csv(index=False),
-
-                "merged_dataset.csv",
-
-                "text/csv"
-
-            )
-
-
-
-            st.download_button(
-
-                "Download ML Dataset",
-
-                train.to_csv(index=False),
-
-                "ml_ready_dataset.csv",
-
-                "text/csv"
-
-            )
-
-
-
-            progress.progress(100)
-
-
-
-            st.success(
-
-                "Pipeline completed successfully 🚀"
-
-            )
-
-
-
-
-
-        except Exception as e:
+        if merged.empty:
 
 
             st.error(
 
-                f"Pipeline failed: {e}"
+                "No reliable merge found. Use manual merge."
 
             )
+
+
+            st.stop()
+
+
+
+
+        st.success(
+            "Merge Completed"
+        )
+
+
+
+        quality_ui(
+            merged
+        )
+
+
+
+        auto_dashboard(
+            merged
+        )
+
+
+
+
+        st.download_button(
+
+            "Download Merged Dataset",
+
+            merged.to_csv(index=False),
+
+            "merged.csv"
+
+        )
