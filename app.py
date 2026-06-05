@@ -2,9 +2,9 @@ import pandas as pd
 import streamlit as st
 
 
-# ================================
-# SAFE IMPORTS
-# ================================
+# =====================================================
+# IMPORTS
+# =====================================================
 
 from modules.cleaner import DataCleaner
 from modules.preprocessing import ml_ready
@@ -12,9 +12,9 @@ from modules.pdf_reader import extract_pdf_data
 
 
 from modules.merger import (
-    merge_on_columns,
     smart_ai_merge,
-    merge_preview
+    merge_preview,
+    merge_on_columns
 )
 
 
@@ -37,96 +37,81 @@ except:
 
 
 
-
-# ================================
+# =====================================================
 # PAGE CONFIG
-# ================================
+# =====================================================
 
 st.set_page_config(
-
     page_title="AI Data Cleaning Platform",
-
     page_icon="🤖",
-
     layout="wide"
-
 )
 
 
 
-
-# ================================
-# FILE LOADER
-# ================================
+# =====================================================
+# LOAD FILE
+# =====================================================
 
 def load_dataset(file):
 
-    extension = (
-        file.name
-        .split(".")[-1]
-        .lower()
-    )
+    ext = file.name.split(".")[-1].lower()
 
 
-    if extension == "csv":
+    if ext == "csv":
 
         return pd.read_csv(file)
 
 
-    elif extension in ["xlsx","xls"]:
+    elif ext in ["xlsx","xls"]:
 
         return pd.read_excel(file)
 
 
-    elif extension=="pdf":
+    elif ext == "pdf":
 
         return extract_pdf_data(file)
 
 
     else:
 
-        raise Exception(
-            "Unsupported file type"
-        )
+        raise Exception("Unsupported file")
 
 
 
 
 
-# ================================
-# QUALITY DASHBOARD
-# ================================
+# =====================================================
+# QUALITY UI
+# =====================================================
 
 def show_quality(df):
 
-
     st.subheader(
-        "📊 Dataset Quality"
+        "📊 Dataset Quality Score"
     )
 
 
     if dataset_quality:
 
-
         result = dataset_quality(df)
-
 
         cols = st.columns(
             len(result)
         )
 
 
-        for i,(k,v) in enumerate(result.items()):
-
+        for i,(key,value) in enumerate(
+            result.items()
+        ):
 
             cols[i].metric(
-                k,
-                v
+                key,
+                value
             )
 
 
     else:
-
 
         st.info(
             "Quality module unavailable"
@@ -136,11 +121,11 @@ def show_quality(df):
 
 
 
-# ================================
-# COLUMN AI
-# ================================
+# =====================================================
+# COLUMN AI UI
+# =====================================================
 
-def show_ai_columns(df):
+def show_column_ai(df):
 
 
     st.subheader(
@@ -148,31 +133,25 @@ def show_ai_columns(df):
     )
 
 
-
     if understand_columns:
 
 
-        data = understand_columns(df)
-
+        result = understand_columns(df)
 
 
         st.dataframe(
 
             pd.DataFrame(
-
-                data.items(),
-
+                result.items(),
                 columns=[
                     "Column",
                     "Detected Meaning"
                 ]
-
             ),
 
             use_container_width=True
 
         )
-
 
 
     else:
@@ -186,30 +165,27 @@ def show_ai_columns(df):
 
 
 
-
-# ================================
-# HEADER
-# ================================
+# =====================================================
+# APP HEADER
+# =====================================================
 
 
 st.title(
-    "🤖 Enterprise AI Data Cleaning System"
+    "🤖 Enterprise AI Data Cleaning Platform"
 )
 
 
 st.caption(
-
-    "Clean • Understand • Analyze • Merge • Prepare ML Data"
-
+    "Clean • Analyze • Understand • Merge • Prepare ML Data"
 )
 
 
 
 
 
-# ================================
+# =====================================================
 # SIDEBAR
-# ================================
+# =====================================================
 
 
 mode = st.sidebar.radio(
@@ -230,52 +206,37 @@ mode = st.sidebar.radio(
 
 
 
-
 # =====================================================
 # SINGLE DATASET CLEANER
 # =====================================================
 
 
-if mode=="🧹 Single Dataset Cleaner":
+if mode == "🧹 Single Dataset Cleaner":
 
 
-
-    file = st.file_uploader(
+    uploaded = st.file_uploader(
 
         "Upload Dataset",
 
         type=[
-
             "csv",
-
             "xlsx",
-
             "xls",
-
             "pdf"
-
         ]
 
     )
 
 
-
-    if file is None:
-
-
-        st.info(
-            "Upload a dataset"
-        )
+    if uploaded is None:
 
         st.stop()
 
 
 
-
     try:
 
-
-        df = load_dataset(file)
+        df = load_dataset(uploaded)
 
 
     except Exception as e:
@@ -287,20 +248,16 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 
-
-
-
     show_quality(df)
 
 
-    show_ai_columns(df)
+    show_column_ai(df)
 
 
 
     st.subheader(
         "Raw Dataset"
     )
-
 
 
     st.dataframe(
@@ -315,22 +272,16 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 
-
     if st.button(
-
-        "🚀 Start Cleaning",
-
+        "🚀 Clean Dataset",
         type="primary"
-
     ):
-
 
 
         try:
 
 
             cleaner = DataCleaner(df)
-
 
 
             cleaned = cleaner.clean_all()
@@ -343,30 +294,27 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 
-
-            # BEFORE AFTER
-
-
             st.subheader(
-                "🔍 Before vs After Cleaning"
+                "Before vs After Cleaning"
             )
-
 
 
             st.json(
 
                 {
 
-                    "Before Rows":len(df),
+                "Before Rows":len(df),
 
-                    "After Rows":len(cleaned),
+                "After Rows":len(cleaned),
 
-                    "Rows Removed":len(df)-len(cleaned),
+                "Rows Removed":
+                len(df)-len(cleaned),
 
+                "Before Columns":
+                df.shape[1],
 
-                    "Before Columns":df.shape[1],
-
-                    "After Columns":cleaned.shape[1]
+                "After Columns":
+                cleaned.shape[1]
 
                 }
 
@@ -375,47 +323,24 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 
-
-            # EXPLANATION
-
-
             st.subheader(
-
-                "📝 Cleaning Explanation"
-
+                "Cleaning Explanation"
             )
 
 
 
-            if hasattr(
-                cleaner,
-                "explain_steps"
-            ):
+            for step in cleaner.explain_steps():
 
 
-                for step in cleaner.explain_steps():
-
-
-                    st.success(step)
-
-
-
-            else:
-
-
-                st.info(
-
-                    "No cleaning logs"
-
-                )
-
-
+                st.info(step)
 
 
 
 
 
             show_quality(cleaned)
+
+
 
 
 
@@ -436,16 +361,10 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 
-
-
-
             if auto_dashboard:
 
 
-                auto_dashboard(
-                    cleaned
-                )
-
+                auto_dashboard(cleaned)
 
 
 
@@ -456,16 +375,12 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
                 train,test,report = ml_ready(
-
                     cleaned
-
                 )
 
 
                 st.subheader(
-
-                    "🤖 ML Preparation"
-
+                    "ML Preparation"
                 )
 
 
@@ -477,11 +392,8 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
                 st.warning(
-
-                    f"ML skipped {e}"
-
+                    f"ML skipped: {e}"
                 )
-
 
 
 
@@ -490,7 +402,7 @@ if mode=="🧹 Single Dataset Cleaner":
 
             st.download_button(
 
-                "Download Clean Dataset",
+                "Download Clean CSV",
 
                 cleaned.to_csv(index=False),
 
@@ -503,8 +415,8 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 
-        except Exception as e:
 
+        except Exception as e:
 
 
             st.error(
@@ -520,28 +432,22 @@ if mode=="🧹 Single Dataset Cleaner":
 
 
 # =====================================================
-# MERGER
+# AI MERGER
 # =====================================================
 
 
 else:
 
 
-
     file1 = st.file_uploader(
 
-        "Upload Dataset 1",
+        "Dataset 1",
 
         type=[
-
             "csv",
-
             "xlsx",
-
             "xls",
-
             "pdf"
-
         ]
 
     )
@@ -550,18 +456,13 @@ else:
 
     file2 = st.file_uploader(
 
-        "Upload Dataset 2",
+        "Dataset 2",
 
         type=[
-
             "csv",
-
             "xlsx",
-
             "xls",
-
             "pdf"
-
         ]
 
     )
@@ -573,10 +474,9 @@ else:
 
 
         st.info(
-
             "Upload two datasets"
-
         )
+
 
         st.stop()
 
@@ -585,19 +485,32 @@ else:
 
 
 
-    df1 = load_dataset(file1)
+    try:
 
 
-    df2 = load_dataset(file2)
+        df1 = load_dataset(file1)
 
+
+        df2 = load_dataset(file2)
+
+
+
+    except Exception as e:
+
+
+        st.error(e)
+
+
+        st.stop()
 
 
 
 
 
     st.subheader(
-        "Datasets Uploaded"
+        "Uploaded Data Preview"
     )
+
 
 
     c1,c2 = st.columns(2)
@@ -606,20 +519,17 @@ else:
 
     with c1:
 
-
         st.write(
             "Dataset 1"
         )
 
-
         st.dataframe(
-            df1.head()
+            df1.head(),
+            use_container_width=True
         )
 
 
-
     with c2:
-
 
         st.write(
             "Dataset 2"
@@ -627,16 +537,15 @@ else:
 
 
         st.dataframe(
-            df2.head()
+            df2.head(),
+            use_container_width=True
         )
 
 
 
 
 
-
-
-    merge_mode = st.radio(
+    merge_type = st.radio(
 
         "Merge Method",
 
@@ -654,12 +563,10 @@ else:
 
 
 
-
-    if merge_mode=="Manual Merge":
-
+    if merge_type=="Manual Merge":
 
 
-        left = st.selectbox(
+        left_col = st.selectbox(
 
             "Dataset 1 Column",
 
@@ -668,7 +575,7 @@ else:
         )
 
 
-        right = st.selectbox(
+        right_col = st.selectbox(
 
             "Dataset 2 Column",
 
@@ -678,14 +585,13 @@ else:
 
 
 
+
+
     else:
 
 
-
         st.subheader(
-
             "🔎 AI Merge Preview"
-
         )
 
 
@@ -693,8 +599,7 @@ else:
         try:
 
 
-
-            preview,all_matches = merge_preview(
+            preview,matches = merge_preview(
 
                 df1,
 
@@ -703,29 +608,20 @@ else:
             )
 
 
-
-            st.json(
-
-                preview
-
-            )
+            st.json(preview)
 
 
 
             with st.expander(
-
                 "View all matches"
-
             ):
 
 
                 st.dataframe(
 
-                    pd.DataFrame(
+                    pd.DataFrame(matches),
 
-                        all_matches
-
-                    )
+                    use_container_width=True
 
                 )
 
@@ -734,14 +630,11 @@ else:
         except Exception as e:
 
 
-
             st.warning(
 
-                f"Preview unavailable {e}"
+                f"Preview failed {e}"
 
             )
-
-
 
 
 
@@ -757,39 +650,28 @@ else:
     ):
 
 
-
-
         try:
 
 
-
-            cleaner1 = DataCleaner(df1)
-
-            cleaner2 = DataCleaner(df2)
-
-
-
-            clean1 = cleaner1.clean_all()
+            # =====================================
+            # IMPORTANT FIX:
+            # MERGE RAW DATA FIRST
+            # THEN CLEAN
+            # =====================================
 
 
-            clean2 = cleaner2.clean_all()
-
-
-
-
-
-            if merge_mode=="Manual Merge":
+            if merge_type=="Manual Merge":
 
 
                 merged = merge_on_columns(
 
-                    clean1,
+                    df1,
 
-                    clean2,
+                    df2,
 
-                    left,
+                    left_col,
 
-                    right
+                    right_col
 
                 )
 
@@ -798,15 +680,13 @@ else:
             else:
 
 
-
                 merged,_,_ = smart_ai_merge(
 
-                    clean1,
+                    df1,
 
-                    clean2
+                    df2
 
                 )
-
 
 
 
@@ -815,10 +695,9 @@ else:
             if merged.empty:
 
 
-
                 st.error(
 
-                    "No matching records found"
+                    "No valid merge found. Try Manual Merge."
 
                 )
 
@@ -830,19 +709,64 @@ else:
 
 
 
+            cleaner = DataCleaner(
+
+                merged
+
+            )
 
 
-            st.success(
+            merged_clean = (
 
-                "Merge Successful"
+                cleaner.clean_all()
 
             )
 
 
 
+
+
+            st.success(
+
+                "Merge Completed Successfully"
+
+            )
+
+
+
+
+
+            st.subheader(
+
+                "Merge Cleaning Explanation"
+
+            )
+
+
+
+            for step in cleaner.explain_steps():
+
+                st.info(step)
+
+
+
+
+
+
             show_quality(
 
-                merged
+                merged_clean
+
+            )
+
+
+
+
+
+
+            st.subheader(
+
+                "Merged Dataset"
 
             )
 
@@ -850,7 +774,7 @@ else:
 
             st.dataframe(
 
-                merged.head(200),
+                merged_clean.head(300),
 
                 use_container_width=True
 
@@ -866,7 +790,7 @@ else:
 
                 auto_dashboard(
 
-                    merged
+                    merged_clean
 
                 )
 
@@ -877,9 +801,9 @@ else:
 
             st.download_button(
 
-                "Download Merged Dataset",
+                "Download Merged CSV",
 
-                merged.to_csv(index=False),
+                merged_clean.to_csv(index=False),
 
                 "merged_dataset.csv",
 
@@ -891,9 +815,7 @@ else:
 
 
 
-
         except Exception as e:
-
 
 
             st.error(
