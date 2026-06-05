@@ -4,63 +4,80 @@ import matplotlib.pyplot as plt
 
 def auto_dashboard(df):
 
-
     st.subheader(
-        "Automatic Data Dashboard"
+        "📊 Auto Dashboard"
     )
 
 
-    numeric=df.select_dtypes(
-        include="number"
-    )
+    try:
 
-
-    if numeric.empty:
-
-        st.info(
-            "No numeric columns available"
+        numeric = df.select_dtypes(
+            include=["int64","float64"]
         )
 
-        return
+
+        if numeric.empty:
+
+            st.info(
+                "No numeric columns available for charts"
+            )
+
+            return
 
 
 
-    column=st.selectbox(
+        column = st.selectbox(
 
-        "Analyze Column",
+            "Select column",
 
-        numeric.columns
+            numeric.columns
 
-    )
-
-
-
-    fig,ax=plt.subplots()
-
-
-    ax.hist(
-        numeric[column]
-    )
-
-
-    ax.set_title(
-        column
-    )
-
-
-    st.pyplot(fig)
+        )
 
 
 
-    st.subheader(
-        "Correlation"
-    )
+        fig, ax = plt.subplots()
 
 
-    st.dataframe(
+        ax.hist(
 
-        numeric.corr(),
+            numeric[column]
+            .dropna()
 
-        use_container_width=True
+        )
 
-    )
+
+        ax.set_title(
+
+            column
+
+        )
+
+
+        st.pyplot(fig)
+
+
+
+        st.subheader(
+            "Correlation Matrix"
+        )
+
+
+        st.dataframe(
+
+            numeric.corr(),
+
+            use_container_width=True
+
+        )
+
+
+
+    except Exception as e:
+
+
+        st.warning(
+
+            f"Dashboard skipped: {e}"
+
+        )
