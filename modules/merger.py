@@ -3,11 +3,11 @@ from difflib import SequenceMatcher
 
 
 
-# =================================================
-# SIMILARITY ENGINE
-# =================================================
+# ==================================================
+# TEXT SIMILARITY
+# ==================================================
 
-def similarity(a, b):
+def similarity(a,b):
 
     return SequenceMatcher(
         None,
@@ -17,154 +17,93 @@ def similarity(a, b):
 
 
 
-# =================================================
-# NORMALIZATION
-# =================================================
+# ==================================================
+# SAFE COLUMN NORMALIZATION ONLY
+# ==================================================
 
-def clean_value(x):
+def normalize_columns(df):
 
-    x = str(x).lower()
+    df=df.copy()
 
-
-    replacements = [
-        "gb",
-        "mb",
-        "₹",
-        "$",
-        ","
-    ]
-
-
-    for r in replacements:
-
-        x = x.replace(
-            r,
-            ""
-        )
-
-
-    return x.strip()
-
-
-
-
-def normalize_dataframe(df):
-
-    df = df.copy()
-
-
-    df.columns = (
+    df.columns=(
 
         df.columns
+        .astype(str)
         .str.lower()
         .str.strip()
-        .str.replace(
-            " ",
-            "_"
-        )
+        .str.replace(" ","_")
 
     )
-
-
-
-    for col in df.columns:
-
-
-        df[col] = (
-
-            df[col]
-            .astype(str)
-            .apply(clean_value)
-
-        )
-
 
     return df
 
 
 
 
-# =================================================
-# DATA OVERLAP CHECK
-# =================================================
+# ==================================================
+# VALUE OVERLAP CHECK
+# ==================================================
 
-def calculate_overlap(
-        s1,
-        s2
-):
+def value_overlap(a,b):
 
+    try:
 
-    a = set(
+        a=set(
+            a.dropna()
+            .astype(str)
+            .str.lower()
+            .head(500)
+        )
 
-        s1.dropna()
-        .astype(str)
-        .head(300)
-
-    )
-
-
-
-    b = set(
-
-        s2.dropna()
-        .astype(str)
-        .head(300)
-
-    )
+        b=set(
+            b.dropna()
+            .astype(str)
+            .str.lower()
+            .head(500)
+        )
 
 
+        if len(a)==0:
 
-    if len(a)==0:
+            return 0
+
+
+        return len(a & b)/len(a)
+
+
+    except:
 
         return 0
 
 
 
-    return (
-
-        len(
-            a.intersection(b)
-        )
-
-        /
-
-        len(a)
-
-    )
 
 
 
+# ==================================================
+# FIND COLUMN MATCHES
+# ==================================================
 
-# =================================================
-# FIND BEST MATCHES
-# =================================================
-
-def find_matches(
-        df1,
-        df2
-):
+def find_matches(df1,df2):
 
 
     results=[]
 
 
-
     for c1 in df1.columns:
-
 
 
         for c2 in df2.columns:
 
 
 
-            column_score = similarity(
+            name_score = similarity(
                 c1,
                 c2
             )
 
 
-
-            value_score = calculate_overlap(
+            data_score=value_overlap(
 
                 df1[c1],
 
@@ -174,37 +113,41 @@ def find_matches(
 
 
 
+            confidence=(
 
-            final_score = (
-
-                column_score*0.4
+                name_score*0.3
 
                 +
 
-                value_score*0.6
+                data_score*0.7
 
             )
 
 
 
+            # reject weak fake matches
 
-            results.append(
+            if confidence>0.40:
 
-                {
 
-                "file1_column":c1,
+                results.append(
 
-                "file2_column":c2,
+                    {
 
-                "column_similarity":round(column_score,2),
+                    "file1_column":c1,
 
-                "value_overlap":round(value_score,2),
+                    "file2_column":c2,
 
-                "confidence":round(final_score,2)
+                    "column_similarity":round(name_score,2),
 
-                }
+                    "value_overlap":round(data_score,2),
 
-            )
+                    "confidence":round(confidence,2)
+
+                    }
+
+                )
+
 
 
 
@@ -223,19 +166,17 @@ def find_matches(
 
 
 
-# =================================================
+
+# ==================================================
 # MERGE PREVIEW
-# =================================================
+# ==================================================
 
-def merge_preview(
-        df1,
-        df2
-):
+def merge_preview(df1,df2):
 
 
-    df1=normalize_dataframe(df1)
+    df1=normalize_columns(df1)
 
-    df2=normalize_dataframe(df2)
+    df2=normalize_columns(df2)
 
 
     matches=find_matches(
@@ -249,48 +190,55 @@ def merge_preview(
         return matches[0],matches
 
 
-    return None,[]
 
+    return (
 
+        {
 
+        "message":
+        "No reliable automatic match found. Use manual merge."
 
+        },
 
-
-# =================================================
-# MANUAL MERGE
-# =================================================
-
-def merge_on_columns(
-
-        df1,
-        df2,
-        left_col,
-        right_col,
-        how="inner"
-
-):
-
-
-    df1=normalize_dataframe(df1)
-
-    df2=normalize_dataframe(df2)
-
-
-
-    left_col = (
-
-        left_col.lower()
-        .replace(" ","_")
+        []
 
     )
 
 
 
-    right_col = (
 
+
+
+
+
+# ==================================================
+# MANUAL MERGE
+# ==================================================
+
+def merge_on_columns(
+    df1,
+    df2,
+    left_col,
+    right_col,
+    how="inner"
+):
+
+
+    df1=normalize_columns(df1)
+
+    df2=normalize_columns(df2)
+
+
+
+    left_col=(
+        left_col.lower()
+        .replace(" ","_")
+    )
+
+
+    right_col=(
         right_col.lower()
         .replace(" ","_")
-
     )
 
 
@@ -313,37 +261,29 @@ def merge_on_columns(
 
 
 
-# =================================================
-# AI MERGE
-# =================================================
+
+# ==================================================
+# SMART AI MERGE
+# ==================================================
 
 def smart_ai_merge(
-
-        df1,
-
-        df2,
-
-        threshold=.30,
-
-        how="inner",
-
-        match_mode="fast"
-
+    df1,
+    df2,
+    threshold=0.45,
+    how="inner",
+    match_mode="fast"
 ):
 
 
-    df1=normalize_dataframe(df1)
+    df1=normalize_columns(df1)
 
-    df2=normalize_dataframe(df2)
+    df2=normalize_columns(df2)
 
 
 
     matches=find_matches(
-
         df1,
-
         df2
-
     )
 
 
@@ -382,25 +322,31 @@ def smart_ai_merge(
 
 
 
+    try:
 
 
-    merged=pd.merge(
+        merged=pd.merge(
 
-        df1,
+            df1,
 
-        df2,
-
-
-        left_on=best["file1_column"],
+            df2,
 
 
-        right_on=best["file2_column"],
+            left_on=best["file1_column"],
 
 
-        how=how
+            right_on=best["file2_column"],
 
-    )
 
+            how=how
+
+        )
+
+
+    except Exception:
+
+
+        merged=pd.DataFrame()
 
 
 
