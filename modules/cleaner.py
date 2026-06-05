@@ -19,7 +19,7 @@ class DataCleaner:
 
             "duplicates_removed": 0,
 
-            "missing_values_fixed": 0,
+            "missing_fixed": 0,
 
             "outliers_removed": 0
 
@@ -28,14 +28,16 @@ class DataCleaner:
 
 
     # --------------------------
-    # COLUMN CLEANING
+    # CLEAN COLUMN NAMES
     # --------------------------
 
-    def clean_column_names(self):
+    def clean_columns(self):
+
 
         self.df.columns = (
 
             self.df.columns
+            .astype(str)
             .str.lower()
             .str.strip()
             .str.replace(" ","_")
@@ -44,7 +46,9 @@ class DataCleaner:
 
 
         self.steps.append(
+
             "Standardized column names"
+
         )
 
 
@@ -55,20 +59,25 @@ class DataCleaner:
 
     def remove_duplicates(self):
 
-        before = len(self.df)
+
+        before=len(self.df)
 
 
-        self.df.drop_duplicates(
-            inplace=True
+        self.df = (
+
+            self.df
+            .drop_duplicates()
+
         )
 
 
-        removed = before - len(self.df)
+        removed = before-len(self.df)
 
 
         self.report[
             "duplicates_removed"
         ] = removed
+
 
 
         self.steps.append(
@@ -79,13 +88,50 @@ class DataCleaner:
 
 
 
+
+
     # --------------------------
-    # MISSING VALUES
+    # SMART TYPE DETECTION
+    # --------------------------
+
+    def convert_possible_numbers(self):
+
+
+        for col in self.df.columns:
+
+
+            converted = pd.to_numeric(
+
+                self.df[col],
+
+                errors="ignore"
+
+            )
+
+
+            self.df[col] = converted
+
+
+
+        self.steps.append(
+
+            "Detected numerical columns automatically"
+
+        )
+
+
+
+
+
+
+    # --------------------------
+    # FIX MISSING
     # --------------------------
 
     def fix_missing(self):
 
-        missing_before = (
+
+        total_missing = int(
 
             self.df
             .isna()
@@ -95,139 +141,113 @@ class DataCleaner:
         )
 
 
+
         for col in self.df.columns:
 
 
-            if self.df[col].dtype == "object":
+
+            # numeric columns
+
+            if pd.api.types.is_numeric_dtype(
+
+                self.df[col]
+
+            ):
+
+
+
+                value = (
+
+                    self.df[col]
+                    .median()
+
+                )
 
 
                 self.df[col] = (
 
                     self.df[col]
-                    .fillna("unknown")
+                    .fillna(value)
 
                 )
 
+
+
+
+            # text columns
 
             else:
 
 
+                mode_value = (
+
+                    self.df[col]
+                    .mode()
+
+                )
+
+
+                if len(mode_value)>0:
+
+
+                    fill = mode_value[0]
+
+
+                else:
+
+
+                    fill = "unknown"
+
+
+
                 self.df[col] = (
 
                     self.df[col]
-                    .fillna(
-                        self.df[col].median()
-                    )
+                    .fillna(fill)
 
                 )
 
 
 
+
         self.report[
-            "missing_values_fixed"
-        ] = int(missing_before)
+
+            "missing_fixed"
+
+        ] = total_missing
 
 
 
         self.steps.append(
 
-            f"Fixed {missing_before} missing values"
-
-        )
-
-
-
-    # --------------------------
-    # OUTLIERS
-    # --------------------------
-
-    def remove_outliers(self):
-
-
-        numeric = (
-
-            self.df
-            .select_dtypes(
-                include=np.number
-            )
-
-        )
-
-
-        removed = 0
-
-
-
-        for col in numeric.columns:
-
-
-            q1 = self.df[col].quantile(.25)
-
-            q3 = self.df[col].quantile(.75)
-
-
-            iqr = q3-q1
-
-
-            before=len(self.df)
-
-
-
-            self.df = self.df[
-
-                (
-
-                    self.df[col]
-
-                    >= q1-1.5*iqr
-
-                )
-
-                &
-
-                (
-
-                    self.df[col]
-
-                    <= q3+1.5*iqr
-
-                )
-
-            ]
-
-
-
-            removed += before-len(self.df)
-
-
-
-        self.report[
-            "outliers_removed"
-        ] = removed
-
-
-
-        self.steps.append(
-
-            f"Removed {removed} outliers"
+            f"Fixed {total_missing} missing values"
 
         )
 
 
 
 
+
     # --------------------------
-    # TEXT NORMALIZATION
+    # TEXT CLEANING
     # --------------------------
 
     def clean_text(self):
 
 
-        for col in self.df.select_dtypes(
+        text_cols = (
 
-            include="object"
+            self.df
+            .select_dtypes(
+                include="object"
+            )
+            .columns
 
-        ):
+        )
+
+
+
+        for col in text_cols:
 
 
             self.df[col] = (
@@ -240,22 +260,117 @@ class DataCleaner:
             )
 
 
+
+
         self.steps.append(
 
-            "Normalized text values"
+            "Normalized text formatting"
 
         )
 
 
 
+
+
     # --------------------------
-    # RUN EVERYTHING
+    # OUTLIERS
+    # --------------------------
+
+    def remove_outliers(self):
+
+
+        removed=0
+
+
+        nums = (
+
+            self.df
+            .select_dtypes(
+                include=np.number
+            )
+
+        )
+
+
+
+        for col in nums.columns:
+
+
+            try:
+
+
+                q1=self.df[col].quantile(.25)
+
+                q3=self.df[col].quantile(.75)
+
+
+                iqr=q3-q1
+
+
+                before=len(self.df)
+
+
+                self.df=self.df[
+
+                    (
+
+                    self.df[col]>=q1-1.5*iqr
+
+                    )
+
+                    &
+
+                    (
+
+                    self.df[col]<=q3+1.5*iqr
+
+                    )
+
+                ]
+
+
+
+                removed += before-len(self.df)
+
+
+
+            except:
+
+
+                pass
+
+
+
+
+        self.report[
+
+            "outliers_removed"
+
+        ]=removed
+
+
+
+        self.steps.append(
+
+            f"Removed {removed} outliers"
+
+        )
+
+
+
+
+
+    # --------------------------
+    # MAIN
     # --------------------------
 
     def clean_all(self):
 
 
-        self.clean_column_names()
+        self.clean_columns()
+
+
+        self.convert_possible_numbers()
 
 
         self.remove_duplicates()
@@ -271,11 +386,12 @@ class DataCleaner:
 
 
 
+
         self.report[
 
             "final_rows"
 
-        ] = len(self.df)
+        ]=len(self.df)
 
 
 
@@ -283,7 +399,8 @@ class DataCleaner:
 
             "final_columns"
 
-        ] = len(self.df.columns)
+        ]=len(self.df.columns)
+
 
 
 
@@ -292,9 +409,11 @@ class DataCleaner:
 
 
 
+
     def get_report(self):
 
         return self.report
+
 
 
 
